@@ -12,7 +12,7 @@ A comprehensive real-time system metrics dashboard built with **FastAPI WebSocke
 ## ✨ Features
 
 - **Real-time Metrics Streaming**: WebSocket-powered updates every 2 seconds
-- **Multi-Server Monitoring**: Support for local and remote servers via SSH
+- **Multi-Server Monitoring**: Support for local and remote servers via SSH or HTTP (query /metrics endpoint)
 - **Interactive Charts**: Live CPU, Memory, Disk, Response Time charts using Chart.js
 - **Intelligent Alert System**: Auto-triggered alerts for CPU > 85%, Memory > 80%, Disk > 90%
 - **Modern UI**: Dark-themed interface built with Vue 3, Pinia, and Vue Router
@@ -94,6 +94,13 @@ npm run dev
 - **WebSocket Metrics**: `ws://localhost:8000/ws/metrics`
 - **WebSocket Alerts**: `ws://localhost:8000/ws/alerts`
 
+### Running on Personal Laptop
+After cloning from GitHub, simply run:
+```bash
+docker compose up --build -d
+```
+Then access the dashboard at http://localhost:5173. All dependencies are containerized - no local Python/Node.js setup required!
+
 ---
 
 ## ⚙️ Configuration
@@ -128,10 +135,14 @@ Edit `backend/app/core/config.py`:
 ```python
 REMOTE_SERVERS = {
     'server-01': {'host': 'localhost', 'user': '', 'password': ''},
-    'server-02': {'host': '192.168.1.10', 'user': 'admin', 'password': 'secure_pass'},
-    'server-03': {'host': 'remote-server.com', 'user': 'monitor', 'key': '/path/to/ssh/key'},
+    'server-02': {'host': '192.168.1.10', 'port': 8001, 'protocol': 'http'},  # HTTP remote monitoring
+    'server-03': {'host': 'remote-server.com', 'user': 'monitor', 'key': '/path/to/ssh/key'},  # SSH remote
 }
 ```
+
+**Protocols Supported**:
+- **HTTP**: Query `/metrics` endpoint from remote dashboard instances (recommended for testing)
+- **SSH**: Direct SSH connection with psutil commands (requires Python/psutil on remote server)
 
 **Security Note**: Never commit passwords or private keys to Git. Use environment variables or secure key management.
 
@@ -281,6 +292,25 @@ scrape_configs:
       - targets: ['localhost:8000']
     metrics_path: '/metrics'
 ```
+
+---
+
+## 🚀 Production Readiness
+
+This dashboard is designed for production use with:
+- **Async/Await**: All I/O operations are non-blocking for high concurrency
+- **Error Handling**: Graceful fallbacks for network/remote server failures
+- **Security**: CORS, input validation, and secure configuration practices
+- **Monitoring**: Built-in Prometheus metrics and health checks
+- **Scalability**: WebSocket broadcasting supports multiple clients
+- **Remote Monitoring**: HTTP-based remote queries (easier than SSH for testing)
+
+### Next Steps for Production
+- Add JWT authentication for API/WebSocket endpoints
+- Implement persistent metrics storage in PostgreSQL
+- Set up Kubernetes deployment with Helm charts
+- Configure TLS/HTTPS with Let's Encrypt
+- Add rate limiting and DDoS protection
 
 ---
 
