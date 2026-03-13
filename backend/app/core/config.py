@@ -44,7 +44,7 @@ class Settings(BaseSettings):
     USE_REAL_METRICS: bool = True  # Set True to use real system metrics instead of simulated
     REMOTE_SERVERS: dict = {  # Example: {'server-01': {'host': '192.168.1.10', 'user': 'user', 'key': '/path/to/key'}}
         'server-01': {'host': 'localhost', 'user': '', 'password': ''},  # Local for demo
-        'server-02': {'host': 'localhost', 'user': '', 'password': ''},
+        'server-02': {'host': '172.22.234.101', 'port': 8001, 'protocol': 'http'},  # WSL HTTP
         'server-03': {'host': 'localhost', 'user': '', 'password': ''},
     }
 

@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from typing import Optional
 import psutil
 import paramiko
+import httpx
 from app.core.config import settings
 from app.core.ws_manager import manager
 from app.schemas.metric import MetricSnapshot, AlertEvent, AlertSeverity
@@ -39,7 +40,7 @@ class MetricSimulator:
             await asyncio.sleep(settings.METRIC_EMIT_INTERVAL)
             self._tick += 1
             for server in self.SERVERS:
-                snapshot = self._generate(server)
+                snapshot = await self._generate(server)
                 await manager.broadcast(snapshot.model_dump(), room="metrics")
 
                 # Update Prometheus metrics
@@ -57,15 +58,16 @@ class MetricSimulator:
                 for alert in alerts:
                     await manager.broadcast(alert.model_dump(), room="alerts")
 
-    def _generate(self, server: str) -> MetricSnapshot:
+    async def _generate(self, server: str) -> MetricSnapshot:
         if settings.USE_REAL_METRICS:  # Thêm setting này vào config.py
-            return self._generate_real(server)
+            return await self._generate_real(server)
         else:
             return self._generate_simulated(server)
 
-    def _generate_real(self, server: str) -> MetricSnapshot:
+    async def _generate_real(self, server: str) -> MetricSnapshot:
         server_config = settings.REMOTE_SERVERS.get(server, {})
         host = server_config.get('host', 'localhost')
+        protocol = server_config.get('protocol', 'ssh')
         
         if host == 'localhost':
             # Local metrics
@@ -75,6 +77,9 @@ class MetricSimulator:
             net = psutil.net_io_counters()
             net_in = net.bytes_recv / 1024 / 1024 * 8  # Mbps
             net_out = net.bytes_sent / 1024 / 1024 * 8  # Mbps
+        elif protocol == 'http':
+            # Remote metrics via HTTP (query /metrics endpoint)
+            cpu, mem, disk, net_in, net_out = await self._get_remote_metrics_http(host, server_config)
         else:
             # Remote metrics via SSH
             cpu, mem, disk, net_in, net_out = self._get_remote_metrics(host, server_config)
@@ -127,6 +132,52 @@ class MetricSimulator:
     def _run_ssh_command(self, client: paramiko.SSHClient, command: str) -> str:
         stdin, stdout, stderr = client.exec_command(command)
         return stdout.read().decode().strip()
+
+    async def _get_remote_metrics_http(self, host: str, config: dict) -> tuple:
+        """Get metrics from remote server via HTTP."""
+        port = config.get('port', 8000)
+        url = f"http://{host}:{port}/metrics"
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(url)
+                if response.status_code == 200:
+                    # Parse Prometheus metrics format
+                    lines = response.text.split('\n')
+                    metrics = {}
+                    for line in lines:
+                        if line.startswith('system_cpu_percent'):
+                            parts = line.split()
+                            if len(parts) >= 2:
+                                server_label = parts[0].split('{')[1].split('}')[0].split('=')[1].strip('"')
+                                if server_label == 'server-02':  # Assuming we query for server-02
+                                    metrics['cpu'] = float(parts[1])
+                        elif line.startswith('system_memory_percent'):
+                            parts = line.split()
+                            if len(parts) >= 2:
+                                metrics['mem'] = float(parts[1])
+                        elif line.startswith('system_disk_percent'):
+                            parts = line.split()
+                            if len(parts) >= 2:
+                                metrics['disk'] = float(parts[1])
+                        elif line.startswith('system_network_in_mbps'):
+                            parts = line.split()
+                            if len(parts) >= 2:
+                                metrics['net_in'] = float(parts[1])
+                        elif line.startswith('system_network_out_mbps'):
+                            parts = line.split()
+                            if len(parts) >= 2:
+                                metrics['net_out'] = float(parts[1])
+                    return (
+                        metrics.get('cpu', 50.0),
+                        metrics.get('mem', 60.0),
+                        metrics.get('disk', 70.0),
+                        metrics.get('net_in', 100.0),
+                        metrics.get('net_out', 50.0)
+                    )
+        except Exception as e:
+            print(f"Error getting HTTP remote metrics from {host}:{port}: {e}")
+            # Fallback
+            return 50.0, 60.0, 70.0, 100.0, 50.0
     def _generate_simulated(self, server: str) -> MetricSnapshot:
         t = self._tick
         # CPU: base + sine wave + random noise
