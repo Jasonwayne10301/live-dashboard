@@ -19,17 +19,39 @@ class MetricSimulator:
     Uses sine waves + noise to create natural-looking fluctuations.
     """
 
-    SERVERS = ["server-01", "server-02", "server-03"]
-
     def __init__(self):
         self._task: Optional[asyncio.Task] = None
         self._tick = 0
-        # Per-server state for smooth transitions
-        self._cpu_base = {s: random.uniform(20, 50) for s in self.SERVERS}
-        self._mem_base = {s: random.uniform(40, 65) for s in self.SERVERS}
+        self._cpu_base: dict[str, float] = {}
+        self._mem_base: dict[str, float] = {}
+        self._servers: list[str] = []
+
+    async def _load_servers(self):
+        from sqlalchemy import select
+        from app.models.server import ServerConfig
+        from app.core.database import AsyncSessionLocal
+
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(select(ServerConfig).where(ServerConfig.is_active == True))
+            rows = result.scalars().all()
+            self._servers = [server.name for server in rows]
+            for s in self._servers:
+                self._cpu_base.setdefault(s, random.uniform(20, 50))
+                self._mem_base.setdefault(s, random.uniform(40, 65))
+
+        if not self._servers:
+            # Ensure one demo server even if DB empty
+            self._servers = ["server-01"]
+            self._cpu_base.setdefault("server-01", random.uniform(20, 50))
+            self._mem_base.setdefault("server-01", random.uniform(40, 65))
 
     async def start(self):
+        await self._load_servers()
         self._task = asyncio.create_task(self._run())
+
+    async def reload_servers(self):
+        await self._load_servers()
+        return self._servers
 
     async def stop(self):
         if self._task:
@@ -39,7 +61,9 @@ class MetricSimulator:
         while True:
             await asyncio.sleep(settings.METRIC_EMIT_INTERVAL)
             self._tick += 1
-            for server in self.SERVERS:
+            if self._tick % 5 == 0:
+                await self._load_servers()
+            for server in self._servers:
                 snapshot = await self._generate(server)
                 await manager.broadcast(snapshot.model_dump(), room="metrics")
 
@@ -65,11 +89,30 @@ class MetricSimulator:
             return self._generate_simulated(server)
 
     async def _generate_real(self, server: str) -> MetricSnapshot:
-        server_config = settings.REMOTE_SERVERS.get(server, {})
-        host = server_config.get('host', 'localhost')
-        protocol = server_config.get('protocol', 'ssh')
-        
-        if host == 'localhost':
+        from sqlalchemy import select
+        from app.core.database import AsyncSessionLocal
+        from app.models.server import ServerConfig
+
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(select(ServerConfig).where(ServerConfig.name == server))
+            server_obj = result.scalars().first()
+
+        if server_obj is None:
+            host = 'localhost'
+            protocol = 'ssh'
+            port = 8000
+            user = None
+            password = None
+            key = None
+        else:
+            host = server_obj.host
+            protocol = server_obj.protocol
+            port = server_obj.port
+            user = server_obj.user
+            password = server_obj.password
+            key = server_obj.key
+
+        if host in (None, '', 'localhost'):
             # Local metrics
             cpu = psutil.cpu_percent(interval=1)
             mem = psutil.virtual_memory().percent
@@ -79,10 +122,14 @@ class MetricSimulator:
             net_out = net.bytes_sent / 1024 / 1024 * 8  # Mbps
         elif protocol == 'http':
             # Remote metrics via HTTP (query /metrics endpoint)
-            cpu, mem, disk, net_in, net_out = await self._get_remote_metrics_http(host, server_config)
+            cpu, mem, disk, net_in, net_out = await self._get_remote_metrics_http(host, port)
         else:
             # Remote metrics via SSH
-            cpu, mem, disk, net_in, net_out = self._get_remote_metrics(host, server_config)
+            cpu, mem, disk, net_in, net_out = self._get_remote_metrics(host, {
+                'user': user,
+                'password': password,
+                'key': key,
+            })
         
         # Simulated request_rate and response_time (or get from app)
         req_rate = random.uniform(100, 300)
@@ -133,9 +180,8 @@ class MetricSimulator:
         stdin, stdout, stderr = client.exec_command(command)
         return stdout.read().decode().strip()
 
-    async def _get_remote_metrics_http(self, host: str, config: dict) -> tuple:
+    async def _get_remote_metrics_http(self, host: str, port: int = 8000) -> tuple:
         """Get metrics from remote server via HTTP."""
-        port = config.get('port', 8000)
         url = f"http://{host}:{port}/metrics"
         try:
             async with httpx.AsyncClient() as client:
@@ -257,3 +303,7 @@ class MetricSimulator:
                 message=f"{snap.server_id}: Memory at {snap.memory}%",
             ))
         return alerts
+
+
+# Singleton simulator used by application
+simulator = MetricSimulator()

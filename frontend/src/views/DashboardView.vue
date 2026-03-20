@@ -18,14 +18,28 @@
       </div>
     </header>
 
+    <!-- Server and Alert management components -->
+    <ServerManagement
+      :servers="availableServers"
+      :authHeader="authHeader"
+      @refresh="fetchServers"
+      @logout="logout"
+    />
+
+    <AlertRuleBuilder
+      :value="alertRule"
+      :authHeader="authHeader"
+      @update:value="(rule) => alertRule = rule"
+    />
+
     <!-- Server Tabs -->
     <div class="server-tabs">
       <button
-        v-for="sid in MetricSimulator.SERVERS"
+        v-for="sid in serverList"
         :key="sid"
         class="server-tab"
         :class="{ 'server-tab--active': store.selectedServer === sid }"
-        @click="store.selectedServer = sid"
+        @click="selectServer(sid)"
       >
         🖥️ {{ sid }}
         <span
@@ -84,23 +98,46 @@ import { useMetricStore } from '@/stores/metricStore'
 import MetricCard from '@/components/MetricCard.vue'
 import LineChart  from '@/components/LineChart.vue'
 import AlertPanel from '@/components/AlertPanel.vue'
-
-// Expose SERVERS constant for the template
-const MetricSimulator = { SERVERS: ['server-01', 'server-02', 'server-03'] }
+import ServerManagement from '@/components/ServerManagement.vue'
+import AlertRuleBuilder from '@/components/AlertRuleBuilder.vue'
 
 const store = useMetricStore()
 const lastUpdate = ref('—')
+const availableServers = ref([])
 
-onMounted(() => store.startStreaming())
+const authHeader = () => {
+  const token = localStorage.getItem('access_token')
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
+async function fetchServers() {
+  try {
+    const res = await fetch('http://localhost:8000/api/v1/servers/', { headers: { ...authHeader() } })
+    if (!res.ok) throw new Error('Cannot load servers')
+    availableServers.value = await res.json()
+  } catch (error) {
+    console.error('Server load error', error)
+  }
+}
+
+function selectServer(sid) {
+  store.selectedServer = sid
+}
+
+function logout() {
+  localStorage.removeItem('access_token')
+  localStorage.removeItem('token_type')
+  location.href = '/login'
+}
+
+onMounted(async () => {
+  await fetchServers()
+  await fetchAlertRule()
+  store.startStreaming()
+})
 
 const current = computed(() => store.currentServer)
 const hist    = computed(() => store.currentHistory || {})
-const serverList = computed(() => store.serverList)
-
-watch(current, () => {
-  lastUpdate.value = new Date().toLocaleTimeString()
-})
-
 const wsStatusClass = computed(() => ({
   'status-dot--green':  store.metricsStatus === 'connected',
   'status-dot--yellow': store.metricsStatus === 'connecting',
@@ -113,6 +150,36 @@ const wsStatusText = computed(() => ({
   disconnected: 'Disconnected',
   error:        'Error',
 }[store.metricsStatus] ?? 'Unknown'))
+
+const alertRule = ref({ cpu: 85, memory: 80, disk: 90 })
+
+async function fetchAlertRule() {
+  try {
+    const res = await fetch('http://localhost:8000/api/v1/metrics/alerts/threshold', { headers: {...authHeader()} })
+    if (!res.ok) return
+    alertRule.value = await res.json()
+  } catch (err) {
+    console.error('load alert rule', err)
+  }
+}
+
+async function updateAlertRule() {
+  try {
+    const res = await fetch('http://localhost:8000/api/v1/metrics/alerts/threshold?cpu=' + alertRule.value.cpu + '&memory=' + alertRule.value.memory + '&disk=' + alertRule.value.disk, {
+      method: 'PUT',
+      headers: { ...authHeader() }
+    })
+    if (!res.ok) throw new Error('Could not update alert rules')
+  } catch (err) {
+    console.error(err)
+  }
+}
+
+const serverList = computed(() => availableServers.value.map(s => s.name))
+
+watch(current, () => {
+  lastUpdate.value = new Date().toLocaleTimeString()
+})
 
 function cpuBadgeClass(cpu) {
   if (cpu >= 85) return 'badge--red'
@@ -218,5 +285,25 @@ function cpuBadgeClass(cpu) {
   .dashboard__charts-alerts { grid-template-columns: 1fr; }
   .charts-grid { grid-template-columns: 1fr; }
   .metrics-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+.server-admin {
+  padding: 1rem 1.5rem;
+  background: #0b1220;
+  border-bottom: 1px solid #1e2d45;
+}
+.admin-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem; }
+.admin-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; }
+.admin-box { background: #111a2e; border: 1px solid #273248; border-radius: 10px; padding: 0.8rem; }
+.server-form input, .server-form select { width: 100%; margin-bottom: 0.45rem; padding: 0.5rem; border-radius: 6px; border: 1px solid #334155; background: #0f172a; color: #e2e8f0; }
+.server-form button { width: 100%; padding: 0.6rem; border: none; border-radius: 6px; background: #10b981; color: white; font-weight: 700; margin-top: 0.35rem; cursor: pointer; }
+.admin-box ul { list-style: none; padding-left: 0; }
+.admin-box li { margin-bottom: 0.35rem; display: flex; justify-content: space-between; align-items:center; }
+.admin-box li button { background: #3b82f6; border: none; padding: 0.2rem 0.5rem; border-radius: 5px; color: white; }
+.logout-btn { border: none; border-radius: 7px; padding: 0.35rem 0.8rem; background: #ef4444; color: white; font-weight: bold; cursor: pointer; }
+.error { color: #fca5a5; margin-top: 0.35rem; font-size: 0.85rem; }
+
+@media (max-width: 900px) {
+  .admin-grid { grid-template-columns: 1fr; }
 }
 </style>

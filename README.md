@@ -93,6 +93,17 @@ npm run dev
 - **Prometheus Metrics**: http://localhost:8000/metrics
 - **WebSocket Metrics**: `ws://localhost:8000/ws/metrics`
 - **WebSocket Alerts**: `ws://localhost:8000/ws/alerts`
+- **Auth**: POST `/api/v1/auth/token` (username/password)
+
+> Default admin account created on first start:
+> - username: `admin`
+> - password: `admin123`
+
+### New HTTP API
+- GET `/api/v1/servers/` (requires auth, gets monitored servers)
+- POST `/api/v1/servers/` (superuser, add server config)
+- PUT `/api/v1/servers/{id}` (superuser, update server config)
+- DELETE `/api/v1/servers/{id}` (superuser, soft delete)
 
 ### Running on Personal Laptop
 After cloning from GitHub, simply run:

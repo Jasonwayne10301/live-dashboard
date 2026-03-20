@@ -25,6 +25,13 @@ paramiko==3.4.0  # For SSH remote monitoring
 prometheus-client==0.20.0  # For Prometheus integration
 httpx==0.27.2
 
+# Authentication
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+
 # Code quality
 black==24.10.0
 flake8==7.1.1
+
+# Multipart support for OAuth2 form
+python-multipart==0.0.7

@@ -21,10 +21,18 @@ def record_snapshot(snapshot: dict):
 
 @router.get("/servers")
 async def list_servers():
-    """List all monitored servers."""
+    """List all monitored servers from DB."""
+    from sqlalchemy import select
+    from app.core.database import AsyncSessionLocal
+    from app.models.server import ServerConfig
+
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(select(ServerConfig).where(ServerConfig.is_active == True))
+        servers = result.scalars().all()
+
     return {
-        "servers": MetricSimulator.SERVERS,
-        "total": len(MetricSimulator.SERVERS),
+        "servers": [s.name for s in servers],
+        "total": len(servers),
         "connected_clients": manager.client_count("metrics"),
     }
 
@@ -60,8 +68,16 @@ async def get_history(
 @router.get("/summary")
 async def get_summary():
     """Get latest snapshot for all servers (dashboard overview)."""
+    from sqlalchemy import select
+    from app.core.database import AsyncSessionLocal
+    from app.models.server import ServerConfig
+
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(select(ServerConfig).where(ServerConfig.is_active == True))
+        servers = [s.name for s in result.scalars().all()]
+
     summary = []
-    for server_id in MetricSimulator.SERVERS:
+    for server_id in servers:
         snapshots = _history.get(server_id, [])
         if snapshots:
             summary.append(snapshots[-1])
@@ -75,3 +91,25 @@ async def get_connection_stats():
         "alerts_room": manager.client_count("alerts"),
         "total": manager.total_clients(),
     }
+
+
+@router.get("/alerts/threshold")
+async def get_alert_threshold():
+    from app.core.config import settings
+
+    return {
+        "cpu": settings.ALERT_THRESHOLD_CPU,
+        "memory": settings.ALERT_THRESHOLD_MEMORY,
+        "disk": settings.ALERT_THRESHOLD_DISK,
+    }
+
+
+@router.put("/alerts/threshold")
+async def set_alert_threshold(cpu: float = 85.0, memory: float = 80.0, disk: float = 90.0):
+    from app.core.config import settings
+
+    settings.ALERT_THRESHOLD_CPU = cpu
+    settings.ALERT_THRESHOLD_MEMORY = memory
+    settings.ALERT_THRESHOLD_DISK = disk
+    return {"message": "updated"}
+

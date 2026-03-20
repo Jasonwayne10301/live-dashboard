@@ -6,14 +6,14 @@ from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 from app.api.v1.router import api_router
 from app.api.v1.endpoints import websocket
 from app.core.config import settings
-from app.core.simulator import MetricSimulator
+from app.core.simulator import simulator
+from app.core.database import init_db
 from app.core.prometheus_metrics import cpu_gauge, memory_gauge, disk_gauge, network_in_gauge, network_out_gauge, request_rate_gauge, response_time_gauge, active_connections_gauge
-
-simulator = MetricSimulator()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    await init_db()
     await simulator.start()
     yield
     await simulator.stop()
