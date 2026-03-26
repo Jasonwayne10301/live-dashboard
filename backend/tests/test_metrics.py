@@ -1,14 +1,7 @@
 import pytest
-from httpx import AsyncClient, ASGITransport
-from app.main import app
+from httpx import AsyncClient
 
 pytestmark = pytest.mark.asyncio
-
-
-@pytest.fixture
-async def client():
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
-        yield ac
 
 
 async def test_health(client: AsyncClient):

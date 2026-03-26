@@ -21,6 +21,9 @@ class MetricSimulator:
     Broadcasts snapshots via WebSocket every METRIC_EMIT_INTERVAL seconds.
     Uses sine waves + noise to create natural-looking fluctuations.
     """
+    
+    # Class attribute for available servers
+    SERVERS = {"server-01", "server-02", "server-03"}
 
     def __init__(self):
         self._task: Optional[asyncio.Task] = None
