@@ -8,6 +8,7 @@ engine: AsyncEngine = create_async_engine(SQLALCHEMY_DATABASE_URL, future=True, 
 AsyncSessionLocal = sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 Base = declarative_base()
 
+
 async def init_db() -> None:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -16,7 +17,6 @@ async def init_db() -> None:
     from app.models.user import User
     from app.core.security import get_password_hash
     from sqlalchemy import select
-    from sqlalchemy.ext.asyncio import AsyncSession
 
     async with AsyncSessionLocal() as session:
         result = await session.execute(select(User).where(User.username == "admin"))

@@ -27,7 +27,7 @@ async def list_servers():
     from app.models.server import ServerConfig
 
     async with AsyncSessionLocal() as session:
-        result = await session.execute(select(ServerConfig).where(ServerConfig.is_active == True))
+        result = await session.execute(select(ServerConfig).where(ServerConfig.is_active is True))
         servers = result.scalars().all()
 
     return {
@@ -41,7 +41,10 @@ async def list_servers():
 async def get_history(
     server_id: str,
     limit: int = Query(default=50, ge=1, le=100),
-    metric: Optional[str] = Query(default=None, description="Filter: cpu | memory | disk | request_rate | response_time"),
+    metric: Optional[str] = Query(
+        default=None,
+        description="Filter: cpu | memory | disk | request_rate | response_time"
+    ),
 ):
     """
     Get recent metric history for a server.
@@ -73,7 +76,7 @@ async def get_summary():
     from app.models.server import ServerConfig
 
     async with AsyncSessionLocal() as session:
-        result = await session.execute(select(ServerConfig).where(ServerConfig.is_active == True))
+        result = await session.execute(select(ServerConfig).where(ServerConfig.is_active is True))
         servers = [s.name for s in result.scalars().all()]
 
     summary = []
@@ -112,4 +115,3 @@ async def set_alert_threshold(cpu: float = 85.0, memory: float = 80.0, disk: flo
     settings.ALERT_THRESHOLD_MEMORY = memory
     settings.ALERT_THRESHOLD_DISK = disk
     return {"message": "updated"}
-

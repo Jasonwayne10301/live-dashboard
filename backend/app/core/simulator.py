@@ -9,7 +9,10 @@ import httpx
 from app.core.config import settings
 from app.core.ws_manager import manager
 from app.schemas.metric import MetricSnapshot, AlertEvent, AlertSeverity
-from app.core.prometheus_metrics import cpu_gauge, memory_gauge, disk_gauge, network_in_gauge, network_out_gauge, request_rate_gauge, response_time_gauge, active_connections_gauge
+from app.core.prometheus_metrics import (
+    cpu_gauge, memory_gauge, disk_gauge, network_in_gauge, network_out_gauge,
+    request_rate_gauge, response_time_gauge, active_connections_gauge
+)
 
 
 class MetricSimulator:
@@ -32,7 +35,9 @@ class MetricSimulator:
         from app.core.database import AsyncSessionLocal
 
         async with AsyncSessionLocal() as session:
-            result = await session.execute(select(ServerConfig).where(ServerConfig.is_active == True))
+            result = await session.execute(
+                select(ServerConfig).where(ServerConfig.is_active is True)
+            )
             rows = result.scalars().all()
             self._servers = [server.name for server in rows]
             for s in self._servers:
@@ -130,11 +135,11 @@ class MetricSimulator:
                 'password': password,
                 'key': key,
             })
-        
+
         # Simulated request_rate and response_time (or get from app)
         req_rate = random.uniform(100, 300)
         response_time = random.uniform(50, 150)
-        
+
         return MetricSnapshot(
             server_id=server,
             timestamp=datetime.now(timezone.utc).isoformat(),
@@ -153,28 +158,40 @@ class MetricSimulator:
         try:
             client = paramiko.SSHClient()
             client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            client.connect(host, username=config.get('user'), password=config.get('password'), key_filename=config.get('key'))
-            
+            client.connect(
+                host,
+                username=config.get('user'),
+                password=config.get('password'),
+                key_filename=config.get('key')
+            )
+
             # Run psutil commands remotely (assuming Python with psutil installed on remote)
             commands = {
                 'cpu': "python3 -c 'import psutil; print(psutil.cpu_percent(interval=1))'",
                 'mem': "python3 -c 'import psutil; print(psutil.virtual_memory().percent)'",
                 'disk': "python3 -c 'import psutil; print(psutil.disk_usage(\"/\").percent)'",
-                'net': "python3 -c 'import psutil; n=psutil.net_io_counters(); print(n.bytes_recv/1024/1024*8, n.bytes_sent/1024/1024*8)'"
+                'net': "python3 -c 'import psutil; n=psutil.net_io_counters(); "
+                       "print(n.bytes_recv/1024/1024*8, n.bytes_sent/1024/1024*8)'"
             }
-            
+
             cpu = float(self._run_ssh_command(client, commands['cpu']))
             mem = float(self._run_ssh_command(client, commands['mem']))
             disk = float(self._run_ssh_command(client, commands['disk']))
             net_data = self._run_ssh_command(client, commands['net']).split()
             net_in, net_out = float(net_data[0]), float(net_data[1])
-            
+
             client.close()
             return cpu, mem, disk, net_in, net_out
         except Exception as e:
             print(f"Error getting remote metrics for {host}: {e}")
             # Fallback to simulated
-            return random.uniform(10, 90), random.uniform(20, 80), random.uniform(30, 95), random.uniform(10, 100), random.uniform(5, 50)
+            return (
+                random.uniform(10, 90),
+                random.uniform(20, 80),
+                random.uniform(30, 95),
+                random.uniform(10, 100),
+                random.uniform(5, 50)
+            )
 
     def _run_ssh_command(self, client: paramiko.SSHClient, command: str) -> str:
         stdin, stdout, stderr = client.exec_command(command)
@@ -194,8 +211,11 @@ class MetricSimulator:
                         if line.startswith('system_cpu_percent'):
                             parts = line.split()
                             if len(parts) >= 2:
-                                server_label = parts[0].split('{')[1].split('}')[0].split('=')[1].strip('"')
-                                if server_label == 'server-02':  # Assuming we query for server-02
+                                server_label = (
+                                    parts[0].split('{')[1].split('}')[0].split('=')[1].strip('"')
+                                )
+                                if server_label == 'server-02':
+                                    # Assuming we query for server-02
                                     metrics['cpu'] = float(parts[1])
                         elif line.startswith('system_memory_percent'):
                             parts = line.split()
@@ -224,6 +244,7 @@ class MetricSimulator:
             print(f"Error getting HTTP remote metrics from {host}:{port}: {e}")
             # Fallback
             return 50.0, 60.0, 70.0, 100.0, 50.0
+
     def _generate_simulated(self, server: str) -> MetricSnapshot:
         t = self._tick
         # CPU: base + sine wave + random noise

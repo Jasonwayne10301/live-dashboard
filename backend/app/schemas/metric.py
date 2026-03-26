@@ -1,5 +1,4 @@
 from pydantic import BaseModel
-from typing import Optional
 from enum import Enum
 
 
@@ -13,7 +12,7 @@ class MetricSnapshot(BaseModel):
     disk: float         # percent 0-100
     network_in: float   # Mbps
     network_out: float  # Mbps
-    request_rate: float # requests/sec
+    request_rate: float  # requests/sec
     response_time: float  # milliseconds
     active_connections: int
 

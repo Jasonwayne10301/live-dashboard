@@ -33,11 +33,14 @@ async def register(user: UserCreate, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/token", response_model=Token)
-async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)):
+async def login_for_access_token(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: AsyncSession = Depends(get_db)
+):
     stmt = select(User).where(User.username == form_data.username)
     result = await db.execute(stmt)
     user = result.scalars().first()
-    if not user or not verify_password(form_data.password, user.hashed_password):
+    if not (user and verify_password(form_data.password, user.hashed_password)):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",

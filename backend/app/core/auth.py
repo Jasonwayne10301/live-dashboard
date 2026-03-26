@@ -4,7 +4,6 @@ from jose import JWTError, jwt
 from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
-from app.core.security import verify_password
 from app.core.database import AsyncSessionLocal
 from app.models.user import User
 from app.schemas.auth import TokenData
@@ -18,7 +17,9 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 
 async def get_user_by_username(db: AsyncSession, username: str):
-    result = await db.execute("SELECT * FROM users WHERE username = :username", {"username": username})
+    result = await db.execute(
+        "SELECT * FROM users WHERE username = :username", {"username": username}
+    )
     user_obj = result.scalars().first()
     return user_obj
 

@@ -10,14 +10,25 @@ router = APIRouter(prefix="/servers", tags=["Servers"])
 
 
 @router.get("/", response_model=list[ServerOut])
-async def list_servers(db: AsyncSession = Depends(get_db), current_user=Depends(get_current_active_user)):
-    result = await db.execute(select(ServerConfig).where(ServerConfig.is_active == True))
+async def list_servers(
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_active_user)
+):
+    result = await db.execute(
+        select(ServerConfig).where(ServerConfig.is_active is True)
+    )
     return result.scalars().all()
 
 
 @router.post("/", response_model=ServerOut, status_code=status.HTTP_201_CREATED)
-async def create_server(server: ServerCreate, db: AsyncSession = Depends(get_db), current_user=Depends(get_current_superuser)):
-    result = await db.execute(select(ServerConfig).where(ServerConfig.name == server.name))
+async def create_server(
+    server: ServerCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_superuser)
+):
+    result = await db.execute(
+        select(ServerConfig).where(ServerConfig.name == server.name)
+    )
     existing = result.scalars().first()
     if existing:
         raise HTTPException(status_code=400, detail="Server with that name already exists")
@@ -31,8 +42,15 @@ async def create_server(server: ServerCreate, db: AsyncSession = Depends(get_db)
 
 
 @router.put("/{server_id}", response_model=ServerOut)
-async def update_server(server_id: int, server: ServerCreate, db: AsyncSession = Depends(get_db), current_user=Depends(get_current_superuser)):
-    result = await db.execute(select(ServerConfig).where(ServerConfig.id == server_id))
+async def update_server(
+    server_id: int,
+    server: ServerCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_superuser)
+):
+    result = await db.execute(
+        select(ServerConfig).where(ServerConfig.id == server_id)
+    )
     db_server = result.scalars().first()
     if not db_server:
         raise HTTPException(status_code=404, detail="Server not found")
@@ -48,8 +66,14 @@ async def update_server(server_id: int, server: ServerCreate, db: AsyncSession =
 
 
 @router.delete("/{server_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_server(server_id: int, db: AsyncSession = Depends(get_db), current_user=Depends(get_current_superuser)):
-    result = await db.execute(select(ServerConfig).where(ServerConfig.id == server_id))
+async def delete_server(
+    server_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_superuser)
+):
+    result = await db.execute(
+        select(ServerConfig).where(ServerConfig.id == server_id)
+    )
     db_server = result.scalars().first()
     if not db_server:
         raise HTTPException(status_code=404, detail="Server not found")
