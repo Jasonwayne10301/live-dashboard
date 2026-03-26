@@ -18,6 +18,7 @@ pydantic-settings==2.5.2
 
 # Testing
 pytest==8.3.3
+pytest-asyncio==0.24.0
 
 # System monitoring
 psutil==6.0.0
