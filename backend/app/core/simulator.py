@@ -39,7 +39,7 @@ class MetricSimulator:
 
         async with AsyncSessionLocal() as session:
             result = await session.execute(
-                select(ServerConfig).where(ServerConfig.is_active is True)
+                select(ServerConfig).where(ServerConfig.is_active)
             )
             rows = result.scalars().all()
             self._servers = [server.name for server in rows]

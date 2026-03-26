@@ -27,7 +27,7 @@ async def list_servers():
     from app.models.server import ServerConfig
 
     async with AsyncSessionLocal() as session:
-        result = await session.execute(select(ServerConfig).where(ServerConfig.is_active is True))
+        result = await session.execute(select(ServerConfig).where(ServerConfig.is_active))
         servers = result.scalars().all()
 
     return {
@@ -76,7 +76,7 @@ async def get_summary():
     from app.models.server import ServerConfig
 
     async with AsyncSessionLocal() as session:
-        result = await session.execute(select(ServerConfig).where(ServerConfig.is_active is True))
+        result = await session.execute(select(ServerConfig).where(ServerConfig.is_active))
         servers = [s.name for s in result.scalars().all()]
 
     summary = []

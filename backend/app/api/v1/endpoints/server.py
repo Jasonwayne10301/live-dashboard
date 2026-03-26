@@ -15,7 +15,7 @@ async def list_servers(
     current_user=Depends(get_current_active_user)
 ):
     result = await db.execute(
-        select(ServerConfig).where(ServerConfig.is_active is True)
+        select(ServerConfig).where(ServerConfig.is_active)
     )
     return result.scalars().all()
 
